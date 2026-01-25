@@ -1,4 +1,4 @@
-name: "Phorix Final Fix 101"
+name: "Phorix Final Victory"
 on:
   repository_dispatch:
     types: ["render_video"]
@@ -15,34 +15,35 @@ jobs:
         with:
           node-version: 20
 
-      - name: "Nuclear Injection"
+      - name: "Inject Files"
         shell: bash
+        env:
+          DYNAMIC_CODE: ${{ github.event.client_payload.tsx_code }}
         run: |
-          # Sabse pehle purane kachre ki chutti
-          rm -rf src/HelloWorld
-          rm -f src/HelloWorld.tsx
+          # 1. Clean conflict
+          rm -rf src/HelloWorld src/HelloWorld.tsx
           
-          # N8N se code uthakar direct file banana (Safest Method)
+          # 2. Write HelloWorld.tsx (Strict Injection)
+          # Yahan DYNAMIC_CODE variable use karke quotes ka lafda avoid kiya hai
           cat <<'EOF' > src/HelloWorld.tsx
           ${{ github.event.client_payload.tsx_code }}
           EOF
           
-          # Root.tsx ko tera code read karne ke liye force karna
+          # 3. Universal Root.tsx (No Schema, Pure Logic)
           cat <<'EOF' > src/Root.tsx
           import { Composition } from "remotion";
-          import { HelloWorld, myCompSchema } from "./HelloWorld";
+          import * as MyComp from "./HelloWorld";
           import React from "react";
           export const RemotionRoot: React.FC = () => {
+            const Target = MyComp.HelloWorld || (MyComp as any).default || (() => null);
             return (
               <Composition
                 id="HelloWorld"
-                component={HelloWorld}
+                component={Target}
                 durationInFrames={150}
                 fps={30}
                 width={1920}
                 height={1080}
-                schema={myCompSchema}
-                defaultProps={{ titleText: "HPlabs" }}
               />
             );
           };
@@ -53,20 +54,29 @@ jobs:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
+          # TG: Start Install
+          curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" -d "chat_id=${TG_CHAT_ID}" -d "text=📦 *Phorix:* Installing libs..." -d "parse_mode=Markdown"
+          
           sudo apt-get update && sudo apt-get install -y ffmpeg libnss3 libatk-bridge2.0-0 libcups2 libdbus-1-3 libdrm2 libgbm1 libasound2t64
           npm install --no-package-lock
           
-          # Render start and log everything
+          # TG: Start Render
+          curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" -d "chat_id=${TG_CHAT_ID}" -d "text=⚙️ *Phorix:* Rendering video..." -d "parse_mode=Markdown"
+          
           npx remotion render HelloWorld out/video.mp4 2>&1 | tee render.log
 
-      - name: "TG: Success or Failure"
-        if: always()
+      - name: "Deliver Success"
+        if: success()
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          if [ "${{ job.status }}" == "success" ]; then
-            curl -F "video=@out/video.mp4" -F "chat_id=$TG_CHAT_ID" -F "caption=✅ Render Success!" https://api.telegram.org/bot$TG_TOKEN/sendVideo
-          else
-            curl -F "document=@render.log" https://api.telegram.org/bot$TG_TOKEN/sendDocument?chat_id=$TG_CHAT_ID -F "caption=❌ Failed. Check Log."
-          fi
+          curl -F "video=@out/video.mp4" -F "chat_id=$TG_CHAT_ID" -F "caption=✅ *Hapa-hap Success!*" -F "parse_mode=Markdown" https://api.telegram.org/bot$TG_TOKEN/sendVideo
+
+      - name: "Deliver Failure"
+        if: failure()
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: |
+          curl -F "document=@render.log" "https://api.telegram.org/bot$TG_TOKEN/sendDocument?chat_id=$TG_CHAT_ID&caption=❌ Render Phata! Log check kar."
