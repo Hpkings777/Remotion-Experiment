@@ -1,4 +1,4 @@
-name: "Phorix Base64 Engine"
+name: "Phorix Final Victory"
 on:
   repository_dispatch:
     types: ["render_video"]
@@ -15,39 +15,40 @@ jobs:
         with:
           node-version: 20
 
-      - name: "Safe Injection (Base64)"
+      - name: "Strict Injection (Base64)"
         shell: bash
         env:
           TSX_B64: ${{ github.event.client_payload.tsx_code_b64 }}
         run: |
-          # 1. Purana kachra saaf aur cache kill
+          # 1. Sab saaf karo aur cache nukes
           rm -rf src/*
           rm -rf node_modules/.cache/remotion
           
-          # 2. Base64 Decode: No shell expansion, no corruption
+          # 2. Safe Base64 Decode
           echo "$TSX_B64" | base64 --decode > src/Component.tsx
           
-          # 3. index.tsx: Strict Import Logic
+          # 3. index.tsx Generation (Strict Contract)
           cat <<'EOF' > src/index.tsx
           import { registerRoot, Composition } from 'remotion';
           import React from 'react';
           import * as Comp from './Component';
           
-          const RemotionRoot = () => {
-            // Priority: HelloWorld -> VideoRoot -> Default
-            const Target = Comp.HelloWorld || (Comp as any).VideoRoot || (Comp as any).default || Object.values(Comp).find(v => typeof v === 'function');
+          const RemotionRoot: React.FC = () => {
+            const Target = Comp.HelloWorld;
+            if (!Target) throw new Error("HelloWorld export missing from payload!");
             return (
-              <Composition
-                id="PhorixVideo"
-                component={Target as any}
-                durationInFrames={180}
-                fps={30}
-                width={1920}
-                height={1080}
+              <Composition 
+                id="Phorix" 
+                component={Target as any} 
+                durationInFrames={180} 
+                fps={30} 
+                width={1920} 
+                height={1080} 
               />
             );
           };
           registerRoot(RemotionRoot);
+          export default RemotionRoot;
           EOF
 
       - name: "Install & Render"
@@ -55,13 +56,13 @@ jobs:
           sudo apt-get update && sudo apt-get install -y ffmpeg libnss3 libatk-bridge2.0-0 libcups2 libdbus-1-3 libdrm2 libgbm1 libasound2t64
           npm install --no-package-lock
           
-          # Overwrite flag ensures fresh render
-          npx remotion render src/index.tsx PhorixVideo out/video.mp4 --overwrite --bundle-cache=false 2>&1 | tee render.log
+          # Render command: ID matching 'Phorix' from index.tsx
+          npx remotion render src/index.tsx Phorix out/video.mp4 --overwrite --bundle-cache=false 2>&1 | tee render.log
 
-      - name: "Deliver Video"
+      - name: "Deliver Success"
         if: success()
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          curl -v -F "video=@out/video.mp4" -F "chat_id=$TG_CHAT_ID" -F "caption=✅ Phorix Victory! Render Success." https://api.telegram.org/bot$TG_TOKEN/sendVideo
+          curl -v -F "video=@out/video.mp4" -F "chat_id=$TG_CHAT_ID" -F "caption=✅ Victory! Video Rendered." https://api.telegram.org/bot$TG_TOKEN/sendVideo
