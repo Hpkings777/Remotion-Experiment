@@ -1,30 +1,30 @@
-name: Phorix Verbose Render Engine
+name: "Phorix Verbose Render Engine"
 on:
   repository_dispatch:
-    types: [render_video]
+    types: ["render_video"]
 
 jobs:
   render:
-    runs-on: ubuntu-latest
+    runs-on: "ubuntu-latest"
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: "Checkout"
+        uses: "actions/checkout@v4"
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: "Setup Node"
+        uses: "actions/setup-node@v4"
         with:
           node-version: 20
 
-      - name: TG: Starting Setup
+      - name: "TG: Starting Setup"
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
           curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
           -d "chat_id=${TG_CHAT_ID}" \
-          -d "text=🎬 *Phorix Setup Started:* Checkout complete." -d "parse_mode=Markdown"
+          -d "text=🎬 *Phorix Setup Started:* Preparing engine..." -d "parse_mode=Markdown"
 
-      - name: Clean & Inject Code
+      - name: "Clean and Inject Code"
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
@@ -32,12 +32,11 @@ jobs:
         run: |
           curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
           -d "chat_id=${TG_CHAT_ID}" \
-          -d "text=💉 *Injecting:* Writing dynamic TSX and cleaning Root..." -d "parse_mode=Markdown"
+          -d "text=💉 *Injecting:* Cleaning Root and writing TSX..." -d "parse_mode=Markdown"
           
           rm -rf src/HelloWorld
           rm -f src/HelloWorld.tsx
           
-          # Naya code inject karna safely
           printf "%s" "$DYNAMIC_CODE" > src/HelloWorld.tsx
           
           cat <<'EOF' > src/Root.tsx
@@ -60,30 +59,30 @@ jobs:
           };
           EOF
 
-      - name: Install All
+      - name: "Install All"
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
           curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
           -d "chat_id=${TG_CHAT_ID}" \
-          -d "text=📦 *Installing:* NPM and System libs..." -d "parse_mode=Markdown"
+          -d "text=📦 *Installing:* Packages and system libs..." -d "parse_mode=Markdown"
           
           sudo apt-get update && sudo apt-get install -y ffmpeg libnss3 libatk-bridge2.0-0 libcups2 libdbus-1-3 libdrm2 libgbm1 libasound2t64
           npm install --no-package-lock
 
-      - name: Render Video
+      - name: "Render Video"
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
           curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
           -d "chat_id=${TG_CHAT_ID}" \
-          -d "text=⚙️ *Rendering:* Engine started. Hold tight..." -d "parse_mode=Markdown"
+          -d "text=⚙️ *Rendering:* Engine started. Almost there..." -d "parse_mode=Markdown"
           
           npx remotion render HelloWorld out/video.mp4 2>&1 | tee render.log
 
-      - name: Deliver to Telegram
+      - name: "Deliver to Telegram"
         if: success()
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
@@ -95,16 +94,17 @@ jobs:
           -F "parse_mode=Markdown" \
           "https://api.telegram.org/bot${TG_TOKEN}/sendVideo"
 
-      - name: TG: Failure Alert & Logs
+      - name: "TG: Failure Alert and Logs"
         if: failure()
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          ERROR_LOG=$(tail -n 15 render.log || echo "No logs found")
+          ERROR_LOG=$(tail -n 20 render.log || echo "No logs found")
+          echo "$ERROR_LOG" > error_log.txt
+          
           curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
           -d "chat_id=${TG_CHAT_ID}" \
-          -d "text=❌ *Render Failed!* Log snippet sent below." -d "parse_mode=Markdown"
+          -d "text=❌ *Render Failed!* Logs attaching..." -d "parse_mode=Markdown"
           
-          echo "$ERROR_LOG" > error_log.txt
           curl -F "document=@error_log.txt" "https://api.telegram.org/bot${TG_TOKEN}/sendDocument?chat_id=${TG_CHAT_ID}"
