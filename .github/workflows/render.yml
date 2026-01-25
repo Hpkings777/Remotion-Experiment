@@ -1,0 +1,50 @@
+name: Phorix Dynamic Render Engine
+on:
+  repository_dispatch:
+    types: [render_video]
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Repo ka base code (templates) uthana
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # 2. Node.js setup karna
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      # 3. N8N se aaye hue TSX code ko Composition.tsx mein overwrite karna
+      # Hum 'cat' aur env variable use kar rahe hain taaki indentation ki problem na ho
+      - name: Inject Dynamic Code
+        shell: bash
+        env:
+          DYNAMIC_CODE: ${{ github.event.client_payload.tsx_code }}
+        run: |
+          cat <<EOF > src/Composition.tsx
+          $DYNAMIC_CODE
+          EOF
+
+      # 4. Dependencies install karna (ismai Chrome/FFmpeg automatic handle hota hai)
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg libnss3 libatk-bridge2.0-0 libcups2 libcomposite1 libasound2
+          npm install
+
+      # 5. Video Render karna
+      # Note: 'HelloWorld' id template-helloworld ki default id hai
+      - name: Render Video
+        run: npx remotion render HelloWorld out/video.mp4
+
+      # 6. Telegram par bhej dena
+      - name: Deliver to Telegram
+        run: |
+          curl -v -F "video=@out/video.mp4" \
+          -F "chat_id=${{ secrets.TG_CHAT_ID }}" \
+          -F "caption=✅ Render Complete! Code provided by N8N/Phorix AI" \
+          https://api.telegram.org/bot${{ secrets.TG_TOKEN }}/sendVideo
