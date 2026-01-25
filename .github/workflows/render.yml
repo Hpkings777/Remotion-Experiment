@@ -1,4 +1,4 @@
-name: "Phorix Ultimate Engine v2"
+name: "Phorix Final Fix 101"
 on:
   repository_dispatch:
     types: ["render_video"]
@@ -15,47 +15,34 @@ jobs:
         with:
           node-version: 20
 
-      - name: "TG: Setup"
-        env:
-          TG_TOKEN: ${{ secrets.TG_TOKEN }}
-          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: |
-          curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
-          -d "chat_id=${TG_CHAT_ID}" \
-          -d "text=🚀 *Phorix:* Engine setup started. Cleaning old files..." -d "parse_mode=Markdown"
-
-      - name: "Inject and Fix Files"
+      - name: "Nuclear Injection"
         shell: bash
-        env:
-          DYNAMIC_CODE: ${{ github.event.client_payload.tsx_code }}
         run: |
-          # Sabse pehle purane folder aur file ki chutti
+          # Sabse pehle purane kachre ki chutti
           rm -rf src/HelloWorld
           rm -f src/HelloWorld.tsx
           
-          # Naya code direct file mein likhna (shell variables ke jhanjhat ke bina)
+          # N8N se code uthakar direct file banana (Safest Method)
           cat <<'EOF' > src/HelloWorld.tsx
           ${{ github.event.client_payload.tsx_code }}
           EOF
           
-          # Root.tsx ko debug-friendly banana
+          # Root.tsx ko tera code read karne ke liye force karna
           cat <<'EOF' > src/Root.tsx
           import { Composition } from "remotion";
-          import * as Comp from "./HelloWorld";
+          import { HelloWorld, myCompSchema } from "./HelloWorld";
           import React from "react";
-          
           export const RemotionRoot: React.FC = () => {
-            // Check if HelloWorld exists, else use default, else fallback to null
-            const Target = Comp.HelloWorld || (Comp as any).default;
-            
             return (
               <Composition
                 id="HelloWorld"
-                component={Target as any}
+                component={HelloWorld}
                 durationInFrames={150}
                 fps={30}
                 width={1920}
                 height={1080}
+                schema={myCompSchema}
+                defaultProps={{ titleText: "HPlabs" }}
               />
             );
           };
@@ -66,38 +53,20 @@ jobs:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
-          -d "chat_id=${TG_CHAT_ID}" \
-          -d "text=📦 *Installing:* NPM packages loading..." -d "parse_mode=Markdown"
-          
           sudo apt-get update && sudo apt-get install -y ffmpeg libnss3 libatk-bridge2.0-0 libcups2 libdbus-1-3 libdrm2 libgbm1 libasound2t64
           npm install --no-package-lock
           
-          curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
-          -d "chat_id=${TG_CHAT_ID}" \
-          -d "text=⚙️ *Rendering:* Bundle start. Almost there Hpkings!" -d "parse_mode=Markdown"
-          
-          # Final Render command with error capture
+          # Render start and log everything
           npx remotion render HelloWorld out/video.mp4 2>&1 | tee render.log
 
-      - name: "Deliver Success"
-        if: success()
+      - name: "TG: Success or Failure"
+        if: always()
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          curl -F "video=@out/video.mp4" \
-          -F "chat_id=${TG_CHAT_ID}" \
-          -F "caption=✅ *Render Success!* Phorix is evolving." \
-          -F "parse_mode=Markdown" \
-          "https://api.telegram.org/bot${TG_TOKEN}/sendVideo"
-
-      - name: "Deliver Failure Logs"
-        if: failure()
-        env:
-          TG_TOKEN: ${{ secrets.TG_TOKEN }}
-          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: |
-          # Agar render phata, toh seedha log file bhej do
-          echo "❌ Render Failed. Full log attached." > error_msg.txt
-          curl -F "document=@render.log" "https://api.telegram.org/bot${TG_TOKEN}/sendDocument?chat_id=${TG_CHAT_ID}&caption=Full%20Error%20Log"
+          if [ "${{ job.status }}" == "success" ]; then
+            curl -F "video=@out/video.mp4" -F "chat_id=$TG_CHAT_ID" -F "caption=✅ Render Success!" https://api.telegram.org/bot$TG_TOKEN/sendVideo
+          else
+            curl -F "document=@render.log" https://api.telegram.org/bot$TG_TOKEN/sendDocument?chat_id=$TG_CHAT_ID -F "caption=❌ Failed. Check Log."
+          fi
