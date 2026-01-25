@@ -1,54 +1,67 @@
-name: Phorix Dynamic Render Engine
+name: "Phorix Base64 Engine"
 on:
   repository_dispatch:
-    types: [render_video]
+    types: ["render_video"]
 
 jobs:
   render:
-    runs-on: ubuntu-latest
+    runs-on: "ubuntu-latest"
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - name: "Checkout"
+        uses: "actions/checkout@v4"
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: "Setup Node"
+        uses: "actions/setup-node@v4"
         with:
           node-version: 20
 
-      - name: Inject Dynamic Code
+      - name: "Safe Injection (Base64)"
         shell: bash
         env:
-          DYNAMIC_CODE: ${{ github.event.client_payload.tsx_code }}
+          TSX_B64: ${{ github.event.client_payload.tsx_code_b64 }}
         run: |
-          cat <<'EOF' > src/Composition.tsx
-          ${{ github.event.client_payload.tsx_code }}
+          # 1. Purana kachra saaf aur cache kill
+          rm -rf src/*
+          rm -rf node_modules/.cache/remotion
+          
+          # 2. Base64 Decode: No shell expansion, no corruption
+          echo "$TSX_B64" | base64 --decode > src/Component.tsx
+          
+          # 3. index.tsx: Strict Import Logic
+          cat <<'EOF' > src/index.tsx
+          import { registerRoot, Composition } from 'remotion';
+          import React from 'react';
+          import * as Comp from './Component';
+          
+          const RemotionRoot = () => {
+            // Priority: HelloWorld -> VideoRoot -> Default
+            const Target = Comp.HelloWorld || (Comp as any).VideoRoot || (Comp as any).default || Object.values(Comp).find(v => typeof v === 'function');
+            return (
+              <Composition
+                id="PhorixVideo"
+                component={Target as any}
+                durationInFrames={180}
+                fps={30}
+                width={1920}
+                height={1080}
+              />
+            );
+          };
+          registerRoot(RemotionRoot);
           EOF
 
-      - name: Install System Dependencies
+      - name: "Install & Render"
         run: |
-          sudo apt-get update
-          # libasound2 ko libasound2t64 se replace kiya hai (Ubuntu 24.04 fix)
-          sudo apt-get install -y ffmpeg libnss3 libatk-bridge2.0-0 libcups2 libdbus-1-3 libdrm2 libgbm1 libasound2t64
-
-      - name: Force Install NPM Dependencies
-        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg libnss3 libatk-bridge2.0-0 libcups2 libdbus-1-3 libdrm2 libgbm1 libasound2t64
           npm install --no-package-lock
+          
+          # Overwrite flag ensures fresh render
+          npx remotion render src/index.tsx PhorixVideo out/video.mp4 --overwrite --bundle-cache=false 2>&1 | tee render.log
 
-      - name: Render Video
-        run: |
-          npx remotion render HelloWorld out/video.mp4
-
-      - name: Deliver to Telegram
+      - name: "Deliver Video"
         if: success()
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          curl -v -F "video=@out/video.mp4" \
-          -F "chat_id=${{ secrets.TG_CHAT_ID }}" \
-          -F "caption=🚀 Hapa-hap Render Complete! Video ready hai." \
-          https://api.telegram.org/bot${{ secrets.TG_TOKEN }}/sendVideo
-
-      - name: Notify Failure
-        if: failure()
-        run: |
-          curl -X POST https://api.telegram.org/bot${{ secrets.TG_TOKEN }}/sendMessage \
-          -d chat_id=${{ secrets.TG_CHAT_ID }} \
-          -d text="❌ Render fail hua! Ubuntu packages check karo."
+          curl -v -F "video=@out/video.mp4" -F "chat_id=$TG_CHAT_ID" -F "caption=✅ Phorix Victory! Render Success." https://api.telegram.org/bot$TG_TOKEN/sendVideo
