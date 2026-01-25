@@ -1,76 +1,52 @@
-import { spring } from "remotion";
-import {
-  AbsoluteFill,
-  interpolate,
-  Sequence,
-  useCurrentFrame,
-  useVideoConfig,
-} from "remotion";
-import { Logo } from "./HelloWorld/Logo";
-import { Subtitle } from "./HelloWorld/Subtitle";
-import { Title } from "./HelloWorld/Title";
-import { z } from "zod";
-import { zColor } from "@remotion/zod-types";
+import { AbsoluteFill, useVideoConfig, useCurrentFrame, interpolate, Sequence } from 'remotion';
+import React from 'react';
 
-export const myCompSchema = z.object({
-  titleText: z.string(),
-  titleColor: zColor(),
-  logoColor1: zColor(),
-  logoColor2: zColor(),
-});
+const neonEffect = {
+  textShadow: '0 0 5px #fff, 0 0 10px #fff, 0 0 15px #00aaff, 0 0 20px #00aaff, 0 0 25px #00aaff, 0 0 30px #00aaff, 0 0 35px #00aaff',
+};
 
-export const HelloWorld: React.FC<z.infer<typeof myCompSchema>> = ({
-  titleText: propOne,
-  titleColor: propTwo,
-  logoColor1,
-  logoColor2,
-}) => {
+export const HelloWorld: React.FC = () => {
+  const videoConfig = useVideoConfig();
   const frame = useCurrentFrame();
-  const { durationInFrames, fps } = useVideoConfig();
+  const countdownItems = [5, 4, 3, 2, 1, 'GO!'];
 
-  // Animate from 0 to 1 after 25 frames
-  const logoTranslationProgress = spring({
-    frame: frame - 25,
-    fps,
-    config: {
-      damping: 100,
-    },
-  });
-
-  // Move the logo up by 150 pixels once the transition starts
-  const logoTranslation = interpolate(
-    logoTranslationProgress,
-    [0, 1],
-    [0, -150],
-  );
-
-  // Fade out the animation at the end
-  const opacity = interpolate(
-    frame,
-    [durationInFrames - 25, durationInFrames - 15],
-    [1, 0],
-    {
-      extrapolateLeft: "clamp",
-      extrapolateRight: "clamp",
-    },
-  );
-
-  // A <AbsoluteFill> is just a absolutely positioned <div>!
   return (
-    <AbsoluteFill style={{ backgroundColor: "white" }}>
-      <AbsoluteFill style={{ opacity }}>
-        <AbsoluteFill style={{ transform: `translateY(${logoTranslation}px)` }}>
-          <Logo logoColor1={logoColor1} logoColor2={logoColor2} />
-        </AbsoluteFill>
-        {/* Sequences can shift the time for its children! */}
-        <Sequence from={35}>
-          <Title titleText={propOne} titleColor={propTwo} />
-        </Sequence>
-        {/* The subtitle will only enter on the 75th frame. */}
-        <Sequence from={75}>
-          <Subtitle />
-        </Sequence>
-      </AbsoluteFill>
+    <AbsoluteFill style={{ backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }}>
+      {countdownItems.map((item, index) => {
+        const itemStartFrame = index * (videoConfig.fps);
+        const itemEndFrame = itemStartFrame + videoConfig.fps;
+        
+        const opacity = interpolate(
+          frame,
+          [itemStartFrame, itemStartFrame + videoConfig.fps / 4, itemEndFrame - videoConfig.fps / 4, itemEndFrame],
+          [0, 1, 1, 0],
+          { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+        );
+
+        const scale = interpolate(
+          frame,
+          [itemStartFrame, itemStartFrame + videoConfig.fps / 4, itemEndFrame],
+          [0.5, 1.2, 0.8],
+          { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+        );
+
+        return (
+          <Sequence key={index} from={itemStartFrame} durationInFrames={videoConfig.fps}>
+            <div style={{ 
+              ...neonEffect, 
+              fontSize: '180px', 
+              fontFamily: 'monospace', 
+              fontWeight: 'bold', 
+              color: '#00aaff', 
+              opacity, 
+              transform: `scale(${scale})`,
+              position: 'absolute' 
+            }}>
+              {item}
+            </div>
+          </Sequence>
+        );
+      })}
     </AbsoluteFill>
   );
 };
