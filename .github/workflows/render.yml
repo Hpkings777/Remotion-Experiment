@@ -20,14 +20,23 @@ jobs:
         env:
           TSX_B64: ${{ github.event.client_payload.tsx_code_b64 }}
         run: |
-          # 1. Sab saaf karo aur cache nukes
           rm -rf src/*
-          rm -rf node_modules/.cache/remotion
           
-          # 2. Safe Base64 Decode
+          # 1. Check if payload exists
+          if [ -z "$TSX_B64" ]; then 
+            echo "❌ ERROR: TSX_B64 is EMPTY!"; 
+            exit 1; 
+          fi
+          
+          # 2. Decode safely
           echo "$TSX_B64" | base64 --decode > src/Component.tsx
           
-          # 3. index.tsx Generation (Strict Contract)
+          # 3. DEBUG: Check content in logs
+          echo "--- START OF COMPONENT.TSX ---"
+          cat src/Component.tsx
+          echo "--- END OF COMPONENT.TSX ---"
+          
+          # 4. Generate Entry Point
           cat <<'EOF' > src/index.tsx
           import { registerRoot, Composition } from 'remotion';
           import React from 'react';
@@ -55,14 +64,13 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg libnss3 libatk-bridge2.0-0 libcups2 libdbus-1-3 libdrm2 libgbm1 libasound2t64
           npm install --no-package-lock
-          
-          # Render command: ID matching 'Phorix' from index.tsx
           npx remotion render src/index.tsx Phorix out/video.mp4 --overwrite --bundle-cache=false 2>&1 | tee render.log
 
-      - name: "Deliver Success"
+      - name: "Deliver Video"
         if: success()
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          curl -v -F "video=@out/video.mp4" -F "chat_id=$TG_CHAT_ID" -F "caption=✅ Victory! Video Rendered." https://api.telegram.org/bot$TG_TOKEN/sendVideo
+          curl -v -F "video=@out/video.mp4" -F "chat_id=$TG_CHAT_ID" -F "caption=✅ Render Success!" https://api.telegram.org/bot$TG_TOKEN/sendVideo
+
