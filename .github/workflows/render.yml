@@ -22,7 +22,7 @@ jobs:
           rm -rf src/*
           touch render.log
           
-          # 2. Component likhna (Using Node Writer)
+          # 2. Component likhna (Using Node Writer for safety)
           node -e "const fs = require('fs'); fs.writeFileSync('src/Component.tsx', process.env.DYNAMIC_CODE);"
           
           # 3. TSX Entry Point (index.tsx) - Note the extension change!
