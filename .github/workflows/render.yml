@@ -1,4 +1,4 @@
-name: "Phorix Final Victory"
+name: "Phorix Final Engine"
 on:
   repository_dispatch:
     types: ["render_video"]
@@ -19,24 +19,19 @@ jobs:
         shell: bash
         env:
           TSX_B64: ${{ github.event.client_payload.tsx_code_b64 }}
+          RAW_DURATION: ${{ github.event.client_payload.duration }}
         run: |
           rm -rf src/*
+          if [ -z "$TSX_B64" ]; then echo "❌ ERROR: TSX_B64 is EMPTY!"; exit 1; fi
           
-          # 1. Check if payload exists
-          if [ -z "$TSX_B64" ]; then 
-            echo "❌ ERROR: TSX_B64 is EMPTY!"; 
-            exit 1; 
-          fi
-          
-          # 2. Decode safely
+          # 1. Decode TSX
           echo "$TSX_B64" | base64 --decode > src/Component.tsx
           
-          # 3. DEBUG: Check content in logs
-          echo "--- START OF COMPONENT.TSX ---"
-          cat src/Component.tsx
-          echo "--- END OF COMPONENT.TSX ---"
+          # 2. Set Duration (Default to 450/15s if missing)
+          FINAL_DURATION=${RAW_DURATION:-450}
+          echo "Rendering with duration: $FINAL_DURATION frames"
           
-          # 4. Generate Entry Point
+          # 3. Generate index.tsx (Quotes on 'EOF' protect the TSX code)
           cat <<'EOF' > src/index.tsx
           import { registerRoot, Composition } from 'remotion';
           import React from 'react';
@@ -49,7 +44,7 @@ jobs:
               <Composition 
                 id="Phorix" 
                 component={Target as any} 
-                durationInFrames={180} 
+                durationInFrames={DURATION_PLACEHOLDER} 
                 fps={30} 
                 width={1920} 
                 height={1080} 
@@ -60,11 +55,14 @@ jobs:
           export default RemotionRoot;
           EOF
 
+          # 4. Inject actual duration safely
+          sed -i "s/DURATION_PLACEHOLDER/$FINAL_DURATION/" src/index.tsx
+
       - name: "Install & Render"
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg libnss3 libatk-bridge2.0-0 libcups2 libdbus-1-3 libdrm2 libgbm1 libasound2t64
           npm install --no-package-lock
-          npx remotion render src/index.tsx Phorix out/video.mp4 --overwrite --bundle-cache=false 2>&1 | tee render.log
+          npx remotion render src/index.tsx Phorix out/video.mp4 --overwrite --bundle-cache=false
 
       - name: "Deliver Video"
         if: success()
@@ -72,5 +70,4 @@ jobs:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          curl -v -F "video=@out/video.mp4" -F "chat_id=$TG_CHAT_ID" -F "caption=✅ Render Success!" https://api.telegram.org/bot$TG_TOKEN/sendVideo
-
+          curl -v -F "video=@out/video.mp4" -F "chat_id=$TG_CHAT_ID" -F "caption=✅ Phorix Render Success!" https://api.telegram.org/bot$TG_TOKEN/sendVideo
