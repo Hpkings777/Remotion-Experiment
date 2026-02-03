@@ -10,17 +10,6 @@ jobs:
       - name: "Checkout"
         uses: "actions/checkout@v4"
 
-      - name: "Telegram: Render Started"
-        env:
-          TG_TOKEN: ${{ secrets.TG_TOKEN }}
-          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: |
-          MESSAGE="🎬 *Phorix Render Started*%0A- Repository: Remotion-Experiment"
-          curl -s -X POST "https://api.telegram.org/bot$TG_TOKEN/sendMessage" \
-            -d "chat_id=$TG_CHAT_ID" \
-            -d "text=$MESSAGE" \
-            -d "parse_mode=Markdown"
-
       - name: "Setup Node"
         uses: "actions/setup-node@v4"
         with:
@@ -29,21 +18,20 @@ jobs:
       - name: "Inject Assets & Code"
         id: inject
         shell: bash
-        env:
-          TSX_B64: "${{ github.event.client_payload.tsx_code_b64 }}"
-          RAW_DURATION: "${{ github.event.client_payload.duration }}"
-          MEDIA_INPUTS: "${{ github.event.client_payload.media_inputs }}"
-          TG_TOKEN: ${{ secrets.TG_TOKEN }}
-          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
           set -e
           echo "🛠 Cleaning workspace..."
           rm -rf src/*
           mkdir -p public/assets
           
-          if [ -z "$TSX_B64" ]; then 
+          # Extract from payload directly using jq to avoid YAML mapping issues
+          PAYLOAD_FILE="/home/runner/work/_temp/_github_workflow/event.json"
+          TSX_B64=$(jq -r '.client_payload.tsx_code_b64' "$PAYLOAD_FILE")
+          RAW_DURATION=$(jq -r '.client_payload.duration' "$PAYLOAD_FILE")
+          MEDIA_INPUTS=$(jq -r '.client_payload.media_inputs' "$PAYLOAD_FILE")
+          
+          if [ "$TSX_B64" == "null" ] || [ -z "$TSX_B64" ]; then 
             echo "❌ ERROR: TSX_B64 is EMPTY!"
-            curl -s -X POST "https://api.telegram.org/bot$TG_TOKEN/sendMessage" -d "chat_id=$TG_CHAT_ID" -d "text=❌ *Error*: TSX code is missing!" -d "parse_mode=Markdown"
             exit 1
           fi
           
@@ -52,18 +40,17 @@ jobs:
           echo "$TSX_B64" | base64 --decode > src/Component.tsx
           
           # 2. Handle Media Inputs
-          if [ ! -z "$MEDIA_INPUTS" ] && [ "$MEDIA_INPUTS" != "{}" ]; then
+          if [ "$MEDIA_INPUTS" != "null" ] && [ ! -z "$MEDIA_INPUTS" ] && [ "$MEDIA_INPUTS" != "{}" ]; then
             echo "📥 Processing media inputs..."
             echo "$MEDIA_INPUTS" | jq -r 'to_entries[] | "\(.key) \(.value)"' | while read -r key value; do
               echo "Downloading $key..."
-              if ! curl -L "$value" -o "public/assets/$key" --fail --silent; then
-                echo "❌ Failed to download $key"
-              fi
+              curl -L "$value" -o "public/assets/$key" --fail --silent || echo "⚠️ Failed to download $key"
             done
           fi
           
           # 3. Set Duration
           FINAL_DURATION=${RAW_DURATION:-450}
+          if [ "$FINAL_DURATION" == "null" ]; then FINAL_DURATION=450; fi
           echo "duration=$FINAL_DURATION" >> $GITHUB_OUTPUT
           
           # 4. Generate index.tsx
@@ -97,7 +84,7 @@ jobs:
 
           sed -i "s/DURATION_PLACEHOLDER/$FINAL_DURATION/" src/index.tsx
           
-          if [ ! -z "$MEDIA_INPUTS" ] && [ "$MEDIA_INPUTS" != "{}" ]; then
+          if [ "$MEDIA_INPUTS" != "null" ] && [ ! -z "$MEDIA_INPUTS" ] && [ "$MEDIA_INPUTS" != "{}" ]; then
             ASSET_MAP_JS=$(echo "$MEDIA_INPUTS" | jq -r 'to_entries | map("assets[\"\(.key)\"] = \"assets/\( .key)\";") | .[]')
             ASSET_MAP_JS_ESCAPED=$(echo "$ASSET_MAP_JS" | sed ':a;N;$!ba;s/\n/\\n/g')
             sed -i "s/\/\/ ASSET_MAP_PLACEHOLDER/$ASSET_MAP_JS_ESCAPED/" src/index.tsx
