@@ -24,11 +24,10 @@ jobs:
           rm -rf src/*
           mkdir -p public/assets
           
-          # Extract from payload directly using jq to avoid YAML mapping issues
-          PAYLOAD_FILE="/home/runner/work/_temp/_github_workflow/event.json"
-          TSX_B64=$(jq -r '.client_payload.tsx_code_b64' "$PAYLOAD_FILE")
-          RAW_DURATION=$(jq -r '.client_payload.duration' "$PAYLOAD_FILE")
-          MEDIA_INPUTS=$(jq -r '.client_payload.media_inputs' "$PAYLOAD_FILE")
+          # Use GITHUB_EVENT_PATH for reliable payload extraction
+          TSX_B64=$(jq -r '.client_payload.tsx_code_b64' "$GITHUB_EVENT_PATH")
+          RAW_DURATION=$(jq -r '.client_payload.duration' "$GITHUB_EVENT_PATH")
+          MEDIA_INPUTS=$(jq -r '.client_payload.media_inputs' "$GITHUB_EVENT_PATH")
           
           if [ "$TSX_B64" == "null" ] || [ -z "$TSX_B64" ]; then 
             echo "❌ ERROR: TSX_B64 is EMPTY!"
