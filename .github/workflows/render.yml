@@ -52,7 +52,7 @@ jobs:
           if [ "$FINAL_DURATION" == "null" ]; then FINAL_DURATION=450; fi
           echo "duration=$FINAL_DURATION" >> $GITHUB_OUTPUT
           
-          # 4. Generate index.tsx with placeholder for asset mapping
+          # 4. Generate index.tsx
           cat <<'EOF' > src/index.tsx
           import { registerRoot, Composition, staticFile } from 'remotion';
           import React from 'react';
@@ -81,22 +81,22 @@ jobs:
           export default RemotionRoot;
           EOF
 
-          # Use a safer replacement for DURATION_PLACEHOLDER
           sed -i "s/DURATION_PLACEHOLDER/$FINAL_DURATION/g" src/index.tsx
           
-          # Use a Python script for safe code injection (to avoid sed delimiter issues)
+          # 5. Safe Asset Injection via Python
           if [ "$MEDIA_INPUTS" != "null" ] && [ ! -z "$MEDIA_INPUTS" ] && [ "$MEDIA_INPUTS" != "{}" ]; then
-            python3 -c "
-            import json, sys
-            media = json.loads(sys.argv[1])
-            js_lines = [f'assets[\"{k}\"] = \"assets/{k}\";' for k in media.keys()]
-            js_code = '\\n  '.join(js_lines)
-            with open('src/index.tsx', 'r') as f:
-                content = f.read()
-            content = content.replace('// ASSET_MAP_PLACEHOLDER', js_code)
-            with open('src/index.tsx', 'w') as f:
-                f.write(content)
-            " "$MEDIA_INPUTS"
+          python3 <<'PYEOF'
+          import json, sys, os
+          media_str = os.environ.get('MEDIA_INPUTS', '{}')
+          media = json.loads(media_str)
+          js_lines = [f'assets["{k}"] = staticFile("assets/{k}");' for k in media.keys()]
+          js_code = '\n  '.join(js_lines)
+          with open('src/index.tsx', 'r') as f:
+              content = f.read()
+          content = content.replace('// ASSET_MAP_PLACEHOLDER', js_code)
+          with open('src/index.tsx', 'w') as f:
+              f.write(content)
+          PYEOF
           fi
 
       - name: "Install Dependencies"
