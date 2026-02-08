@@ -83,13 +83,15 @@ jobs:
 
           sed -i "s/DURATION_PLACEHOLDER/$FINAL_DURATION/g" src/index.tsx
           
-          # 5. Safe Asset Injection via Python
+          # 5. Safe Asset Injection via Python (FIXED PATH)
           if [ "$MEDIA_INPUTS" != "null" ] && [ ! -z "$MEDIA_INPUTS" ] && [ "$MEDIA_INPUTS" != "{}" ]; then
+          export MEDIA_INPUTS
           python3 <<'PYEOF'
           import json, sys, os
           media_str = os.environ.get('MEDIA_INPUTS', '{}')
           media = json.loads(media_str)
-          js_lines = [f'assets["{k}"] = staticFile("assets/{k}");' for k in media.keys()]
+          # FIXED: Remotion staticFile() looks inside 'public/' by default
+          js_lines = [f'assets["{k}"] = "assets/{k}";' for k in media.keys()]
           js_code = '\n  '.join(js_lines)
           with open('src/index.tsx', 'r') as f:
               content = f.read()
