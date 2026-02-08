@@ -91,6 +91,7 @@ jobs:
           media_str = os.environ.get('MEDIA_INPUTS', '{}')
           media = json.loads(media_str)
           # Correct mapping: The key is the asset name, value is the path relative to public/
+          # Using staticFile in the TSX itself, so just pass the relative path here
           js_lines = [f'assets["{k}"] = "assets/{k}";' for k in media.keys()]
           js_code = '\n  '.join(js_lines)
           with open('src/index.tsx', 'r') as f:
@@ -109,6 +110,7 @@ jobs:
       - name: "Render Video"
         id: render
         run: |
+          # Use absolute path for index.tsx and increase concurrency for speed
           npx remotion render src/index.tsx Phorix out/video.mp4 --overwrite --bundle-cache=false
 
       - name: "Deliver Video"
